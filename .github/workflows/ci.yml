@@ -1,0 +1,36 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: ci-password
+          MARIADB_DATABASE: cadna_mart
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: mysql://root:ci-password@127.0.0.1:3306/cadna_mart
+      DATABASE_URL_TEST: mysql://root:ci-password@127.0.0.1:3306/cadna_mart_test
+      CORS_ORIGINS: http://localhost:5173,http://localhost:5174
+      LOG_LEVEL: silent
+      HUSKY: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - run: npm run validate
