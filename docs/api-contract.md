@@ -6,7 +6,7 @@ Inspected 2026-11-16: `../cadna-mart/src`, including App routes, auth adapter/ty
 
 **The CADNA storefront makes zero HTTP API calls.** There is no fetch, axios, RTK Query or API client. Auth uses delayed mocks; catalogue uses static arrays; cart/orders use localStorage; newsletter only changes component state. Image assets are not API calls. Logout clears local state. No real payment, delivery, seller or investor integration exists.
 
-**Admin frontend: not built yet, confirmed by the user.** There are therefore zero admin API calls to inventory. Admin UI screenshots/designs may be supplied later to propose routes and fields; no admin contracts are claimed as observed. Nearby unrelated frontend folders were excluded.
+**Admin frontend: reviewed from `cadna-admin.zip`, supplied after the initial M0 commit.** It contains a React/Vite UI prototype with seven pages, local state, mock arrays and simulated actions. There are **zero CADNA business API calls** in the supplied source. External images and Iconify icon loading are presentation dependencies, not CADNA endpoints. This supersedes the earlier note that admin source was unavailable.
 
 ## Proposed contracts replacing storefront mocks
 
@@ -45,16 +45,82 @@ Cart add/change/remove/clear stay local in M3; no server cart CRUD is observed. 
 
 ## Proposed milestone ownership
 
-| Milestone | Scope                                       | Evidence/status                                      |
-| --------- | ------------------------------------------- | ---------------------------------------------------- |
-| 1         | Authentication, sessions, customer profile  | Mock auth adapter                                    |
-| 2         | Catalogue, categories, home data            | Static data                                          |
-| 3         | Cart validation and pricing                 | Local cart selectors                                 |
-| 4         | Order creation/history/details              | Demo checkout and local repository                   |
-| 5         | Payments and verified webhooks              | No calls; provider contract pending                  |
-| 6         | Delivery and fulfilment                     | No calls; provider contract pending                  |
-| 7         | Admin roles and management                  | Admin not built; UI/design and routes/fields pending |
-| 8         | Newsletter/content/settings                 | Footer mock; admin UI/design pending                 |
-| 9         | Integration hardening and release readiness | No additional observed calls                         |
+| Milestone | Scope                                       | Evidence/status                                       |
+| --------- | ------------------------------------------- | ----------------------------------------------------- |
+| 1         | Authentication, sessions, customer profile  | Mock auth adapter                                     |
+| 2         | Catalogue, categories, home data            | Static data                                           |
+| 3         | Cart validation and pricing                 | Local cart selectors                                  |
+| 4         | Order creation/history/details              | Demo checkout and local repository                    |
+| 5         | Payments and verified webhooks              | No calls; provider contract pending                   |
+| 6         | Delivery and fulfilment                     | No calls; provider contract pending                   |
+| 7         | Admin roles and management                  | Admin ZIP reviewed; proposed contracts below          |
+| 8         | Newsletter/content/settings                 | Footer mock; admin access/settings prototype reviewed |
+| 9         | Integration hardening and release readiness | No additional observed calls                          |
 
 M0 implements `GET /api/v1/health`: no request fields; response `status: ok|degraded, version: string, database: connected|disconnected`. Development-only `GET /api/docs/` serves Swagger UI; `GET /api/docs/openapi.json` serves generated OpenAPI.
+
+## Admin ZIP review and proposed contracts
+
+Source: `/Users/mac/Documents/cadna-admin.zip`, inspected 2026-11-16. Archive SHA-256: `0c4a101722da7ab9eb9c1bdd8537bf9b70b6658202ce557c23eb890d0fa97c90`.
+Read `package.json`, `src/App.tsx`, and all seven `src/pages/*.tsx` files. No archive code or package scripts were executed. The ZIP was extracted into temporary storage; it is not vendored into the backend.
+
+The following routes are **design proposals**, not observed HTTP requests or implemented endpoints. Paths are relative to `/api/v1`; success/error envelopes follow the conventions above. IDs, timestamps, pagination and invitation results below are server additions to UI-only models. Every protected admin route must enforce session authentication and a specific authorized role; sign-in/recovery routes instead require abuse controls and must not disclose account existence. Roles visible in the mock include Super admin, Operations lead and Customer care; the permission matrix remains to be agreed.
+
+### Page inventory
+
+| Browser page        | Source file            | Current behavior                                                                                 |
+| ------------------- | ---------------------- | ------------------------------------------------------------------------------------------------ |
+| `/`                 | AdminSignIn.tsx        | Email/password/remember-device form; delayed success alert; recovery and SSO alerts              |
+| `/dashboard`        | OperationsOverview.tsx | Static metrics/chart/recent orders; local notifications; simulated export and new order          |
+| `/order-control`    | OrderControl.tsx       | Local order search, payment/dispatch tabs, seller/date filters; simulated export and sign-out    |
+| `/seller-directory` | SellerDirectory.tsx    | Local seller search/status/category filters; invite modal adds a mock row                        |
+| `/catalog-control`  | CatalogControl.tsx     | Local search/category/availability filters; add and delete products in state                     |
+| `/customer-care`    | CustomerCare.tsx       | Local case queue/filter/detail/create/status/delete; static service metrics; article placeholder |
+| `/access-settings`  | AccessSettings.tsx     | Mock admin list/invites; local session timeout; static 2FA badge; other tabs are placeholders    |
+
+### Proposed response shapes
+
+- Admin: `id, name, email, role, status, avatar`; mock status is Active or Invite sent.
+- AdminOrder: `id, customer, phone, seller, payment, fulfillment, total, createdAt`. Mock `payment` is Paid/Review/Unpaid; `fulfillment` is Packing/Dispatch due/On hold/Awaiting Payment/Dispatched. Mock `date` is a display string; proposed `createdAt` is UTC ISO. Dashboard additionally displays Shipped/Delivered/Pending.
+- Seller: `id, name, joinedAt, category, orders30d, status, gmv30d`; mock uses display string `dateJoined` and Verified/In review status.
+- AdminProduct: `id, name, sku, sellerId, seller, price, stock, status, categoryId, category`; seller/category IDs are additions. Mock status is Live/Low stock/Review.
+- SupportCase: `id, title, customerId, customer, category, priority, status, createdAt, initials`. Mock has `time` display text and combines High priority/In progress/New in one `priority` field; proposed API separates urgency and workflow state.
+- Paginated lists: `items[], page, pages, total`. Pagination is a server proposal; the mock filters full local arrays.
+
+| Method | Proposed path               | Request fields                                                    | Response data fields                                                                                                                                                  | Page / source evidence                                                          | Milestone                   |
+| ------ | --------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------- |
+| POST   | /admin/auth/login           | email, password, rememberDevice                                   | admin: Admin, requiresMfa, challengeId when needed; session only after completed auth                                                                                 | AdminSignIn handleSignInSubmit                                                  | 1                           |
+| POST   | /admin/auth/forgot-password | email                                                             | generic message                                                                                                                                                       | AdminSignIn handleForgotPassword                                                | 1                           |
+| POST   | /admin/auth/logout          | session cookie                                                    | message                                                                                                                                                               | OrderControl handleSignOut                                                      | 1                           |
+| GET    | /admin/overview             | from, to (proposed reporting interval)                            | revenue, revenueChangePercent, orderCount, awaitingDispatchCount, productCount, pendingProductReviewCount, openCaseCount, escalationCount, recentOrders: AdminOrder[] | OperationsOverview metrics/recent orders                                        | 7                           |
+| GET    | /admin/analytics/sales      | period or from/to, interval                                       | points[{date,revenue}], currency                                                                                                                                      | OperationsOverview SalesPerformanceChart                                        | 7                           |
+| GET    | /admin/reports/operations   | from, to, format=csv                                              | CSV report; column definitions pending reporting scope                                                                                                                | OperationsOverview handleExportReport (toast only)                              | 7                           |
+| GET    | /admin/notifications        | page                                                              | items[{id,message,createdAt,readAt}], page, pages, total                                                                                                              | OperationsOverview notifications string array                                   | 7                           |
+| PATCH  | /admin/notifications/read   | ids[] or all=true                                                 | updatedCount                                                                                                                                                          | OperationsOverview handleClearNotifications; proposes per-admin read state      | 7                           |
+| GET    | /admin/orders               | q, tab=all/awaiting_payment/to_dispatch, sellerId, from, to, page | paginated AdminOrder[], counts{all,awaitingPayment,toDispatch}                                                                                                        | OrderControl filteredOrders/counts                                              | 7 (M4 order foundation)     |
+| GET    | /admin/orders/export        | same filters, format=csv                                          | CSV: id, customer, phone, seller, payment, fulfillment, total, createdAt                                                                                              | OrderControl handleExportOrders (toast only)                                    | 7                           |
+| GET    | /admin/sellers              | q, status, categoryId, page                                       | paginated Seller[], summary metrics                                                                                                                                   | SellerDirectory filters/stat cards; OrderControl seller filter                  | 7                           |
+| POST   | /admin/seller-invitations   | name, email, categoryId                                           | invitationId, status, seller: Seller                                                                                                                                  | SellerDirectory InviteModal/handleInviteSubmit                                  | 7                           |
+| GET    | /admin/products             | q, categoryId, availability, page                                 | paginated AdminProduct[], summary metrics                                                                                                                             | CatalogControl filteredProducts/stat cards                                      | 7 (M2 catalogue foundation) |
+| POST   | /admin/products             | name, sku, sellerId, price, stock, categoryId, publicationStatus  | AdminProduct                                                                                                                                                          | CatalogControl AddProductModal/handleAddProduct                                 | 7                           |
+| DELETE | /admin/products/:id         | id                                                                | id, archived=true                                                                                                                                                     | CatalogControl handleDeleteProduct; proposes archival to preserve order history | 7                           |
+| GET    | /admin/cases                | priority, status, page                                            | paginated SupportCase[]                                                                                                                                               | CustomerCare CaseQueue                                                          | 7                           |
+| GET    | /admin/cases/:id            | id                                                                | SupportCase                                                                                                                                                           | CustomerCare CaseDetailModal (local selection now)                              | 7                           |
+| POST   | /admin/cases                | title, customerId, category, priority, status                     | SupportCase                                                                                                                                                           | CustomerCare NewCaseModal/handleCreateCase                                      | 7                           |
+| PATCH  | /admin/cases/:id            | id; priority and/or status                                        | SupportCase                                                                                                                                                           | CustomerCare handleStatusChange                                                 | 7                           |
+| DELETE | /admin/cases/:id            | id                                                                | id, archived=true                                                                                                                                                     | CustomerCare handleDeleteCase; retention policy pending                         | 7                           |
+| GET    | /admin/support/metrics      | from, to                                                          | openCases, highPriorityCases, firstResponseMinutes, resolvedToday, knowledgeBaseGapCount                                                                              | CustomerCare stat cards/ServicePulse                                            | 7                           |
+| GET    | /admin/team                 | page                                                              | paginated Admin[]                                                                                                                                                     | AccessSettings AdminTeamList                                                    | 7                           |
+| POST   | /admin/team/invitations     | name, email, role                                                 | invitationId, admin: Admin                                                                                                                                            | AccessSettings AddAdminModal/handleAddAdmin                                     | 7                           |
+| GET    | /admin/settings/security    | none                                                              | requireMfa, sessionTimeoutMinutes                                                                                                                                     | AccessSettings SecurityCard                                                     | 8                           |
+| PATCH  | /admin/settings/security    | sessionTimeoutMinutes: 15/30/60/240                               | requireMfa, sessionTimeoutMinutes                                                                                                                                     | AccessSettings timeout select; 2FA badge is not a toggle                        | 8                           |
+
+### Integration decisions still required
+
+- SSO is an alert only: provider, protocol, callback and payloads are undefined. Reserve M1 design work; do not invent an implemented SSO contract. The 2FA “Required” badge has no enrollment/challenge flow; MFA must be designed alongside admin authentication before production.
+- Marketplace rules, other access/settings tabs, analytics detail and knowledge-base article editing are placeholders. No request/response fields can be derived from them. Reserve marketplace/content design for M8, analytics for M7 and release verification for M9.
+- Seller invitations currently collect email but discard it in the callback. The real invitation endpoint must send and persist the invitation securely. Mock invite statuses and generated avatars are not evidence of email delivery.
+- Catalogue price, seller GMV and chart revenue are naira numbers; dashboard/order totals are formatted naira strings. API values must be integer kobo, with display formatting in the frontend. Dates must be UTC ISO, with reporting boundaries and display in Africa/Lagos.
+- Payment, fulfilment and storefront order status need a documented mapping in M4–M6. Support priority/status must be separated, and product low-stock state derived from inventory rather than chosen as a publication status.
+- Customer, seller and category names in forms must resolve to stable IDs. Summary metric names/definitions, report columns, permission matrix and retention policies are proposed until agreed.
+- No API should be added for UI navigation, dropdown toggles, mock order simulation or opening a local modal. No product edit, seller approval or order fulfilment mutation call exists in this ZIP; these workflows require future specification.
