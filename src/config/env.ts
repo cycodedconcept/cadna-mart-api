@@ -14,6 +14,19 @@ export const envSchema = z
       .enum(['development', 'test', 'production'])
       .default('development'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    AUTH_ENCRYPTION_KEY: z.string().regex(/^[a-f0-9]{64}$/i),
+    APP_URL: z.string().url().default('http://localhost:5173'),
+    ADMIN_APP_URL: z.string().url().default('http://localhost:5174'),
+    MAIL_TRANSPORT: z.enum(['file', 'smtp']).default('file'),
+    MAIL_FROM: z.string().email().default('no-reply@cadna.local'),
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+    SMTP_SECURE: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASSWORD: z.string().optional(),
     DATABASE_URL: databaseUrl,
     DATABASE_URL_TEST: databaseUrl.optional(),
     CORS_ORIGINS: z
@@ -48,6 +61,34 @@ export const envSchema = z
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   })
   .superRefine((value, ctx) => {
+    if (value.NODE_ENV === 'production') {
+      for (const key of ['APP_URL', 'ADMIN_APP_URL'] as const) {
+        if (!value[key].startsWith('https://'))
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: 'HTTPS required',
+          });
+      }
+      if (value.MAIL_TRANSPORT !== 'smtp')
+        ctx.addIssue({
+          code: 'custom',
+          path: ['MAIL_TRANSPORT'],
+          message: 'SMTP required in production',
+        });
+    }
+    if (value.MAIL_TRANSPORT === 'smtp' && !value.SMTP_HOST)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SMTP_HOST'],
+        message: 'Required for SMTP',
+      });
+    if (!!value.SMTP_USER !== !!value.SMTP_PASSWORD)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SMTP_PASSWORD'],
+        message: 'Provide both SMTP credentials',
+      });
     if (value.NODE_ENV === 'test' && !value.DATABASE_URL_TEST)
       ctx.addIssue({
         code: 'custom',

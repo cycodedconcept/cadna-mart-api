@@ -1,14 +1,114 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "mysql"
-  url = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
+
 model Setting {
-  key String @id @db.VarChar(191)
-  value Json
+  key       String   @id @db.VarChar(191)
+  value     Json
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
   @@map("settings")
+}
+
+enum Role {
+  CUSTOMER
+  SUPER_ADMIN
+  OPERATIONS_LEAD
+  CUSTOMER_CARE
+}
+
+model User {
+  id            String          @id @default(uuid()) @db.Char(36)
+  email         String          @unique @db.VarChar(254)
+  fullName      String          @db.VarChar(120)
+  phone         String          @default("") @db.VarChar(32)
+  passwordHash  String          @db.VarChar(255)
+  role          Role            @default(CUSTOMER)
+  active        Boolean         @default(true)
+  authVersion   Int             @default(0)
+  mfaSecret     String?         @db.Text
+  mfaLastStep   BigInt          @default(-1)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  sessions      Session[]
+  resets        PasswordReset[]
+  challenges    MfaChallenge[]
+  recoveryCodes RecoveryCode[]
+
+  @@map("users")
+}
+
+model Session {
+  tokenHash   String   @id @db.Char(64)
+  userId      String   @db.Char(36)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  csrfToken   String   @db.Char(64)
+  authVersion Int
+  mfaVerified Boolean  @default(false)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model PasswordReset {
+  tokenHash   String   @id @db.Char(64)
+  userId      String   @db.Char(36)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  authVersion Int
+  expiresAt   DateTime
+
+  @@index([userId])
+  @@map("password_resets")
+}
+
+model MfaChallenge {
+  tokenHash     String   @id @db.Char(64)
+  userId        String   @db.Char(36)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  authVersion   Int
+  pendingSecret String?  @db.Text
+  attempts      Int      @default(0)
+  expiresAt     DateTime
+
+  @@index([userId])
+  @@map("mfa_challenges")
+}
+
+model RecoveryCode {
+  codeHash String @id @db.Char(64)
+  userId   String @db.Char(36)
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("recovery_codes")
+}
+
+model AuthThrottle {
+  key       String   @id @db.Char(64)
+  attempts  Int      @default(1)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+  @@map("auth_throttles")
+}
+
+model MailJob {
+  id          String   @id @default(uuid()) @db.Char(36)
+  payload     String   @db.Text
+  attempts    Int      @default(0)
+  availableAt DateTime @default(now())
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([availableAt])
+  @@map("mail_jobs")
 }

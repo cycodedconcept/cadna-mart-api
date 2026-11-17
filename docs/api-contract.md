@@ -10,7 +10,7 @@ Inspected 2026-11-16: `../cadna-mart/src`, including App routes, auth adapter/ty
 
 ## Proposed contracts replacing storefront mocks
 
-Paths below are **proposed**, relative to `/api/v1`, and unimplemented in M0. Milestones are a proposed roadmap; no backend M1–M9 specification was supplied. Success responses use `{success:true,data:...}` except health. Errors use `{success:false,message,code,fieldErrors}`. All API money is integer kobo; current catalogue mock prices are naira and will require frontend conversion changes.
+The historical inventory below records **proposed** shapes; the implemented M1 section supersedes its authentication rows. Paths are relative to `/api/v1`, and were unimplemented in M0. Milestones are a proposed roadmap; no backend M1–M9 specification was supplied. Success responses use `{success:true,data:...}` except health. Errors use `{success:false,message,code,fieldErrors}`. All API money is integer kobo; current catalogue mock prices are naira and will require frontend conversion changes.
 
 Shared response shapes:
 
@@ -124,3 +124,33 @@ The following routes are **design proposals**, not observed HTTP requests or imp
 - Payment, fulfilment and storefront order status need a documented mapping in M4–M6. Support priority/status must be separated, and product low-stock state derived from inventory rather than chosen as a publication status.
 - Customer, seller and category names in forms must resolve to stable IDs. Summary metric names/definitions, report columns, permission matrix and retention policies are proposed until agreed.
 - No API should be added for UI navigation, dropdown toggles, mock order simulation or opening a local modal. No product edit, seller approval or order fulfilment mutation call exists in this ZIP; these workflows require future specification.
+
+## Implemented M1 contracts — 2026-11-17
+
+These contracts supersede the authentication proposals above. Paths are relative to `/api/v1`. All success payloads below are inside `{success:true,data:...}`. Zod-generated OpenAPI is served at `/api/docs/openapi.json` in development. Bodies reject unknown fields; query and route parameters must be empty.
+
+| Method | Path                                               | Request                                                                                                    | Success data                                                                      |
+| ------ | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| POST   | /auth/register                                     | fullName, email, optional phone, password, confirmPassword                                                 | 201: profile; no session                                                          |
+| POST   | /auth/login                                        | email, password                                                                                            | profile, csrfToken, expiresAt; customer cookie                                    |
+| POST   | /auth/forgot-password, /admin/auth/forgot-password | email                                                                                                      | 202: generic message                                                              |
+| POST   | /auth/reset-password, /admin/auth/reset-password   | token, password, confirmPassword                                                                           | message; revokes all account sessions                                             |
+| GET    | /auth/session                                      | customer cookie                                                                                            | profile, csrfToken, expiresAt                                                     |
+| GET    | /admin/auth/session                                | admin cookie, completed MFA                                                                                | admin, csrfToken, expiresAt                                                       |
+| POST   | /auth/logout, /admin/auth/logout                   | corresponding cookie and CSRF header; empty body                                                           | message; revokes current session                                                  |
+| GET    | /account/profile                                   | customer cookie                                                                                            | id, fullName, email, phone                                                        |
+| PATCH  | /account/profile                                   | customer cookie and CSRF header; at least one of fullName, phone, email; currentPassword for changed email | profile, reauthenticate                                                           |
+| POST   | /admin/auth/login                                  | email, password, optional rememberDevice                                                                   | requiresMfa: true, enrollmentRequired, challengeToken, expiresAt; no session      |
+| POST   | /admin/auth/mfa/enroll                             | challengeToken                                                                                             | secret, otpauthUri; no session                                                    |
+| POST   | /admin/auth/mfa/verify                             | challengeToken, six-digit code                                                                             | admin, csrfToken, expiresAt; admin cookie; recoveryCodes only on first enrollment |
+| POST   | /admin/auth/mfa/recover                            | challengeToken, recoveryCode                                                                               | admin, csrfToken, expiresAt; admin cookie                                         |
+
+Every write requires `X-CADNA-Client: web`; authenticated writes additionally require `X-CSRF-Token`. Clients must include credentials. Cookies are HttpOnly, SameSite=Lax, path `/`, and Secure with `__Host-` names in production (`__Host-cadna_customer`, `__Host-cadna_admin`); development omits the prefix. Customer sessions expire after 24 hours; admin sessions after 30 minutes, without sliding renewal. The two session types are separate. `rememberDevice` is accepted but does not extend sessions or bypass MFA. Auth responses disable caching.
+
+Emails are trimmed and lowercased. New passwords require 15–128 characters and matching confirmation. An email change requires the current password, revokes all sessions/reset tokens and returns `reauthenticate:true`. Profile ownership always comes from the session. Admin responses add role (`SUPER_ADMIN`, `OPERATIONS_LEAD`, `CUSTOMER_CARE`); protected admin auth routes explicitly allow these roles and require completed MFA.
+
+Reset links carry a 64-character hexadecimal token in the URL fragment (`/reset-password#token=...`); the frontend must extract it and submit it in the reset body. Tokens expire in 30 minutes, are single-use, and a new request invalidates earlier links. Admin password resets retain MFA. MFA challenges expire in five minutes and allow at most five verification attempts. TOTP steps cannot be replayed. First enrollment returns ten recovery codes once; each recovery login requires a fresh password challenge and consumes one code.
+
+Login attempts share a database throttle of ten attempts per identity per 15-minute window; reset requests allow five and MFA verification fifteen. Profile email-change attempts allow ten. An additional per-process IP limiter covers auth routes (50 requests per 15 minutes), alongside the global limiter. Errors use the standard envelope and include validation (400), invalid credentials/challenges or missing sessions (401), forbidden role/header/CSRF (403), email/enrollment conflict (409), throttling (429), and sanitized internal failures (500).
+
+SSO, email verification, trusted-device bypass, MFA rotation/recovery-code regeneration and business admin routes are not implemented. The frontend mock adapters have not been connected. SameSite=Lax cookies require a same-site deployment for browser authentication; cross-site hosting needs a separate cookie/CSRF deployment design.

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { authPaths } from '@/modules/auth/auth.openapi.js';
+import { cookieName } from '@/modules/auth/auth.session.js';
 import { healthSchema } from '@/modules/health/health.schema.js';
 import { errorSchema } from '@/lib/errors.js';
 import { version } from './version.js';
@@ -10,7 +12,18 @@ const json = (schema: z.ZodType) => ({
 export const openapi = {
   openapi: '3.1.0',
   info: { title: 'CADNA Mart API', version },
+  components: {
+    securitySchemes: {
+      customerSession: {
+        type: 'apiKey',
+        in: 'cookie',
+        name: cookieName(false),
+      },
+      adminSession: { type: 'apiKey', in: 'cookie', name: cookieName(true) },
+    },
+  },
   paths: {
+    ...authPaths,
     '/api/v1/health': {
       get: {
         tags: ['Health'],

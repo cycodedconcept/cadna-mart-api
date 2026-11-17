@@ -7,7 +7,12 @@ export default defineConfig({
     environment: 'node',
     fileParallelism: false,
     setupFiles: ['tests/setup.ts'],
-    env: { NODE_ENV: 'test', LOG_LEVEL: 'silent' },
+    env: {
+      NODE_ENV: 'test',
+      LOG_LEVEL: 'silent',
+      AUTH_ENCRYPTION_KEY: '1'.repeat(64),
+      MAIL_TRANSPORT: 'file',
+    },
     testTimeout: 15000,
     hookTimeout: 30000,
   },

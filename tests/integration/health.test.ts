@@ -1,24 +1,20 @@
-import { execFileSync } from 'node:child_process';
+import { migrateTestDatabase, resetTestDatabase } from './database.js';
 import { beforeAll, beforeEach, afterAll, it, expect } from 'vitest';
 import request from 'supertest';
 import { prisma } from '@/lib/prisma.js';
 import { app } from '@/app.js';
 let migrated = false;
 beforeAll(() => {
-  execFileSync(
-    process.execPath,
-    ['node_modules/prisma/build/index.js', 'migrate', 'deploy'],
-    { env: process.env, stdio: 'pipe' },
-  );
+  migrateTestDatabase();
   migrated = true;
 });
 // Clear only application rows in the isolated test database, preserving migration history.
 beforeEach(async () => {
-  await prisma.setting.deleteMany();
+  await resetTestDatabase();
 });
 afterAll(async () => {
   try {
-    if (migrated) await prisma.setting.deleteMany();
+    if (migrated) await resetTestDatabase();
   } finally {
     await prisma.$disconnect();
   }
