@@ -9,6 +9,10 @@ export function migrateTestDatabase() {
 }
 export async function resetTestDatabase() {
   await prisma.$transaction([
+    prisma.productSpecification.deleteMany(),
+    prisma.productImage.deleteMany(),
+    prisma.product.deleteMany(),
+    prisma.category.deleteMany(),
     prisma.mailJob.deleteMany(),
     prisma.authThrottle.deleteMany(),
     prisma.session.deleteMany(),

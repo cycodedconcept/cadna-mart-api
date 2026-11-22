@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { cataloguePaths } from '@/modules/catalogue/catalogue.openapi.js';
 import { authPaths } from '@/modules/auth/auth.openapi.js';
 import { cookieName } from '@/modules/auth/auth.session.js';
 import { healthSchema } from '@/modules/health/health.schema.js';
@@ -24,6 +25,7 @@ export const openapi = {
   },
   paths: {
     ...authPaths,
+    ...cataloguePaths,
     '/api/v1/health': {
       get: {
         tags: ['Health'],

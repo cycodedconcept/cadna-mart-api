@@ -154,3 +154,29 @@ Reset links carry a 64-character hexadecimal token in the URL fragment (`/reset-
 Login attempts share a database throttle of ten attempts per identity per 15-minute window; reset requests allow five and MFA verification fifteen. Profile email-change attempts allow ten. An additional per-process IP limiter covers auth routes (50 requests per 15 minutes), alongside the global limiter. Errors use the standard envelope and include validation (400), invalid credentials/challenges or missing sessions (401), forbidden role/header/CSRF (403), email/enrollment conflict (409), throttling (429), and sanitized internal failures (500).
 
 SSO, email verification, trusted-device bypass, MFA rotation/recovery-code regeneration and business admin routes are not implemented. The frontend mock adapters have not been connected. SameSite=Lax cookies require a same-site deployment for browser authentication; cross-site hosting needs a separate cookie/CSRF deployment design.
+
+## Implemented M2 contracts — 2026-11-22
+
+The catalogue rows in the historical proposal are now implemented as follows. These public GET endpoints require no session. Responses use `{success:true,data:...}`; errors use the shared AppError envelope. Request bodies must be absent or empty objects; unknown or repeated query parameters are rejected.
+
+| Endpoint                   | Request                   | Response data                                                                                                           |
+| -------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/categories`   | No parameters             | Array of `{id,name,image}` for active categories, sorted by name then id; includes empty categories                     |
+| `GET /api/v1/products`     | Optional filters below    | `{items:Product[],total,page,pages}` with eight items per page                                                          |
+| `GET /api/v1/products/:id` | UUID product id; no query | Product; missing, unpublished and inactive-category products all return 404 `PRODUCT_NOT_FOUND`                         |
+| `GET /api/v1/home`         | No parameters             | `{featuredProducts:Product[],categories:Category[],banners:[]}`; up to eight featured products, ordered by name then id |
+
+Product contains `id,name,categoryId,price,originalPrice,images[],description,stock,specifications{string:string}`. Product and category IDs are UUID strings, replacing the frontend's numeric product IDs and category slugs. Prices are integer kobo from 0 through 9,007,199,254,740,991. `originalPrice` is required, at least `price`, and equals `price` when there is no discount. Images follow stored ascending position; specifications are keyed by name. Internal publication flags, image row IDs and timestamps are omitted.
+
+Product query fields:
+
+- `q`: trimmed non-empty name substring, at most 120 characters. Search follows the database's case-insensitive utf8mb4 Unicode collation. `%`, `_` and backslash are literal characters, not search wildcards.
+- `category`: category UUID. An unknown or inactive category returns an empty list.
+- `min`, `max`: inclusive integer-kobo bounds, written as decimal digits only; `min <= max`. No decimal fractions, exponent notation, signs, blanks or unsafe integers.
+- `available`: `1` restricts to stock greater than zero; omitted or `0` includes out-of-stock products.
+- `sort`: `name` (default), `price-asc`, or `price-desc`. All sorts use id ascending to break ties.
+- `page`: decimal integer from 1 to 1,000,000, default 1. Pages above the result range clamp to the last page, matching the storefront. Empty results return `items:[],total:0,page:1,pages:1`.
+
+Lists, detail and home only expose published products whose category is active. Out-of-stock products remain visible unless filtered. Pagination count and items, and the home sections, use repeatable-read transactions. Invalid inputs return 400, and database failures return a sanitized 500. Global CORS and IP rate limits still apply.
+
+Categories, products, ordered images and named specifications are persisted in MariaDB. Products default to unpublished. Database constraints enforce safe nonnegative kobo, reference-price ordering and nonnegative stock. No mock products are automatically seeded. M2 adds public reads only: trusted database provisioning is needed until M7 management routes exist. Banner content remains reserved for M8 and returns an empty array. Frontend adapter changes, variant inventory, stock reservation and cart pricing are outside this milestone; M3 will calculate quotes from server prices.

@@ -1,6 +1,6 @@
 # CADNA Mart API
 
-Milestones 0–1: Node.js 22+, Express 5, strict TypeScript, Prisma 6.19.3, MariaDB, zod, Vitest and Supertest.
+Milestones 0–2: Node.js 22+, Express 5, strict TypeScript, Prisma 6.19.3, MariaDB, zod, Vitest and Supertest.
 
 ## Local setup with XAMPP
 
@@ -16,7 +16,7 @@ Milestones 0–1: Node.js 22+, Express 5, strict TypeScript, Prisma 6.19.3, Mari
 4. Generate `AUTH_ENCRYPTION_KEY` using the command in `.env.example` and add it to your existing `.env`. Run `npm ci`, `npm run db:deploy`, `npm run db:seed`, then `npm run dev`.
 5. Open `http://localhost:3000/api/v1/health` and development Swagger UI at `http://localhost:3000/api/docs/`. Generated JSON is at `/api/docs/openapi.json`.
 
-Prisma is constrained to version 6 (lockfile: 6.19.3) to retain the requested schema-based `DATABASE_URL` datasource configuration. See [Prisma datasource documentation](https://www.prisma.io/docs/orm/v6/prisma-schema/overview/data-sources). Migrations target MySQL/MariaDB, not SQLite. The schema includes settings, users, sessions, password resets, MFA challenges, recovery codes, authentication throttles and the encrypted mail outbox. The seed is idempotent and does not overwrite existing store settings.
+Prisma is constrained to version 6 (lockfile: 6.19.3) to retain the requested schema-based `DATABASE_URL` datasource configuration. See [Prisma datasource documentation](https://www.prisma.io/docs/orm/v6/prisma-schema/overview/data-sources). Migrations target MySQL/MariaDB, not SQLite. The schema includes settings, users, sessions, password resets, MFA challenges, recovery codes, authentication throttles the encrypted mail outbox, categories, products, ordered images and named specifications. The seed is idempotent and does not overwrite existing store settings.
 
 ## Configuration
 
@@ -37,7 +37,7 @@ Errors have `{ success: false, message, code, fieldErrors }`. Health returns `{ 
 - `npm run db:migrate -- --name <change>`: author a development migration.
 - `npm run db:deploy`: apply committed migrations.
 
-Tests deploy migrations to `DATABASE_URL_TEST`, delete authentication and settings rows before each integration test and after the suite, and disconnect. They never reset the development schema. Use a disposable test database: all its authentication and settings data is removed. A missing server is a test failure. CI runs MariaDB 10.11 and the complete validation command.
+Tests deploy migrations to `DATABASE_URL_TEST`, delete catalogue, authentication and settings rows before each integration test and after the suite, and disconnect. They never reset the development schema. Use a disposable test database: all its catalogue, authentication and settings data is removed. A missing server is a test failure. CI runs MariaDB 10.11 and the complete validation command.
 
 Husky runs lint-staged before commits, conventional commit validation for commit messages and full validation before pushes. Project policy is **never push**. `npm ci` installs hooks automatically in a Git checkout.
 
@@ -50,3 +50,7 @@ Run `npm run mail:work` alongside the development API to process password-recove
 Create an administrator using `npm run admin:create`, supplying a JSON object on stdin with `email`, `fullName`, `password` (15–128 characters) and `role` (`SUPER_ADMIN`, `OPERATIONS_LEAD` or `CUSTOMER_CARE`). Use a secure input source; do not put passwords in command arguments or shell history. The first login requires TOTP enrollment and returns ten single-use recovery codes after verification. No default administrator is seeded.
 
 Browser clients must use credentials-included requests and send `X-CADNA-Client: web` for writes. Authenticated writes also require `X-CSRF-Token` from login or the session endpoint. See the implemented M1 contracts in [API contract](docs/api-contract.md) and [M1 report](docs/milestones/M1.md).
+
+## Catalogue
+
+M2 exposes public categories, filtered/paginated products, product detail and home data under `/api/v1`. Apply migrations with `npm run db:deploy` before using these routes. No demo catalogue is seeded: an empty database returns empty lists. Products must be published and belong to active categories to appear. Prices and price filters are integer kobo; identifiers are UUID strings. Admin catalogue management is planned for M7. See [implemented contracts](docs/api-contract.md) and [M2 report](docs/milestones/M2.md).

@@ -1,4 +1,5 @@
 import express from 'express';
+import { catalogueRouter } from '@/modules/catalogue/catalogue.routes.js';
 import { authRouter } from '@/modules/auth/auth.routes.js';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -48,6 +49,7 @@ export function createApp(
   app.use('/api/v1', createRateLimiter(options.rateLimit));
   app.use(express.json({ limit: env.JSON_BODY_LIMIT }));
   app.use('/api/v1/health', healthRouter(options.probe));
+  app.use('/api/v1', catalogueRouter());
   app.use('/api/v1', authRouter());
   if ((options.mode ?? env.NODE_ENV) === 'development') {
     app.get('/api/docs/openapi.json', (_req, res) => res.json(openapi));
