@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma.js';
 import { logger } from '@/lib/logger.js';
 try {
   await prisma.$connect();
+  logger.info('Database connected successfully');
   const server = app.listen(env.PORT, () =>
     logger.info({ port: env.PORT }, 'API listening'),
   );
