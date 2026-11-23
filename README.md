@@ -54,3 +54,9 @@ Browser clients must use credentials-included requests and send `X-CADNA-Client:
 ## Catalogue
 
 M2 exposes public categories, filtered/paginated products, product detail and home data under `/api/v1`. Apply migrations with `npm run db:deploy` before using these routes. No demo catalogue is seeded: an empty database returns empty lists. Products must be published and belong to active categories to appear. Prices and price filters are integer kobo; identifiers are UUID strings. Admin catalogue management is planned for M7. See [implemented contracts](docs/api-contract.md) and [M2 report](docs/milestones/M2.md).
+
+## Terminal startup and Postman
+
+Run `npm run dev` after starting MariaDB and applying migrations with `npm run db:deploy`. With `LOG_LEVEL=info` (or `debug`/`trace`) in your `.env`, startup logs include `Database connected successfully` followed by `API listening` and the port. Logs remain structured JSON. Connection failures log `Database connection failed during startup` and exit without starting HTTP. No database URL or credentials are logged.
+
+Import `docs/postman/M2.postman_collection.json` into Postman. Its collection variable `baseUrl` defaults to `http://localhost:3000/api/v1`; change the port if your API uses a different one. Send **Health — database connection** first, then **Categories**, **Products**, and **Home**. No authentication or request body is needed. The Products request saves the first returned UUID as `productId` for **Product detail**. With no catalogue records, lists are empty and detail returns 404; create a published product in an active category before expecting the detail check to pass. The collection also includes invalid-input requests with expected 400/404 assertions. Prices are integer kobo.
